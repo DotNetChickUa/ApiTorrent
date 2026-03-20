@@ -9,6 +9,7 @@
 
 
 	<ItemGroup>
+		<PackageReference Include="BlazorDownloadFileFast" Version="1.0.0.1" />
 		<PackageReference Include="MonoTorrent" Version="3.0.3-alpha.unstable.rev0049" />
 	</ItemGroup>
 

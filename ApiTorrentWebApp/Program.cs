@@ -1,6 +1,7 @@
 using ApiTorrentWebApp.Components;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddBlazorDownloadFile();
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
