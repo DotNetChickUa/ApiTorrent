@@ -1,0 +1,109 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.Components.Forms
+@using System.Net.Http.Headers
+@inject IHttpClientFactory HttpClientFactory
+@inject IJSRuntime JS
+
+<PageTitle>Torrent Downloader</PageTitle>
+
+<h1>Torrent Downloader</h1>
+
+<div class="mb-3">
+    <label class="form-label" for="download-endpoint">Download endpoint path</label>
+    <input id="download-endpoint" class="form-control" @bind="downloadEndpoint" />
+</div>
+
+<div class="mb-3">
+    <InputFile OnChange="OnTorrentSelected" accept=".torrent" />
+</div>
+
+<button class="btn btn-primary" @onclick="DownloadAsync" disabled="@(isBusy || selectedFile is null)">
+    @(isBusy ? "Downloading..." : "Download file from torrent")
+</button>
+
+@if (!string.IsNullOrWhiteSpace(statusMessage))
+{
+    <div class="alert alert-info mt-3" role="status">@statusMessage</div>
+}
+
+@code {
+    private const long MaxTorrentFileSize = 10 * 1024 * 1024;
+
+    private IBrowserFile? selectedFile;
+    private bool isBusy;
+    private string downloadEndpoint = "download";
+    private string? statusMessage;
+
+    private void OnTorrentSelected(InputFileChangeEventArgs eventArgs)
+    {
+        selectedFile = eventArgs.File;
+        statusMessage = $"Selected torrent: {selectedFile.Name}";
+    }
+
+    private async Task DownloadAsync()
+    {
+        if (selectedFile is null)
+        {
+            statusMessage = "Select a torrent file first.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(downloadEndpoint))
+        {
+            statusMessage = "Provide a valid download endpoint path.";
+            return;
+        }
+
+        isBusy = true;
+        statusMessage = null;
+
+        try
+        {
+            await using var uploadStream = selectedFile.OpenReadStream(MaxTorrentFileSize);
+            await using var torrentDataStream = new MemoryStream();
+            await uploadStream.CopyToAsync(torrentDataStream);
+            torrentDataStream.Position = 0;
+
+            using var requestContent = new StreamContent(torrentDataStream);
+
+            var apiClient = HttpClientFactory.CreateClient("ApiTorrentApi");
+            using var request = new HttpRequestMessage(HttpMethod.Post, downloadEndpoint)
+            {
+                Content = requestContent
+            };
+            using var response = await apiClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+
+            var fileName = GetResponseFileName(response.Content.Headers.ContentDisposition)
+                ?? "download.bin";
+
+            await using var responseStream = await response.Content.ReadAsStreamAsync();
+            using var streamReference = new DotNetStreamReference(responseStream);
+
+            await JS.InvokeVoidAsync("downloadFileFromStream", fileName, streamReference);
+            statusMessage = $"Downloaded '{fileName}'.";
+        }
+        catch (HttpRequestException exception)
+        {
+            statusMessage = $"Request failed: {exception.Message}";
+        }
+        catch (IOException exception)
+        {
+            statusMessage = $"File handling failed: {exception.Message}";
+        }
+        catch (JSException exception)
+        {
+            statusMessage = $"Browser download failed: {exception.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private static string? GetResponseFileName(ContentDispositionHeaderValue? contentDisposition)
+    {
+        var fileName = contentDisposition?.FileNameStar ?? contentDisposition?.FileName;
+        return string.IsNullOrWhiteSpace(fileName) ? null : fileName.Trim('"');
+    }
+}

@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="ApiTorrent/ApiTorrent.csproj" />
+  <Project Path="ApiTorrentClient/ApiTorrentClient.csproj" />
+  <Project Path="ApiTorrentWebApp/ApiTorrentWebApp.csproj" Id="caa37e1b-bde7-4dfa-8c40-482c86fe40fb" />
+</Solution>
